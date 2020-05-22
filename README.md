@@ -1,3 +1,76 @@
+# Full-stack Bookshelf application
+
+The application is made for the Database course with the aim to learn how
+to apply SQL in real-life situation.
+
+The used technologies are:
+* Google Cloud services: MySQL database, different APIs
+* Google App Engine for deployment
+* Flask as the web server
+* SQLAlchemy as the SQL ORM
+* Alpine.js as the main frontend library for simple SPA solutions
+* UIKit as the design system of the application
+
+The [application demo](https://ee488-20206035.du.r.appspot.com/) works on the Google Cloud platform.
+
+## Installation
+
+To install it, you need to have Python3 and Google Cloud project and credentials for it.
+
+The steps: 
+
+**Follow the readme in the example ["Hello, world" project](https://cloud.google.com/appengine/docs/standard/python3/quickstart)**
+
+**Create an [SQL instance](https://cloud.google.com/sql/docs/mysql/create-instance)**
+
+**Install [Proxy for the SQL](https://cloud.google.com/sql/docs/mysql/connect-external-app)**
+
+**Add configuration:**
+```
+import os
+
+SECRET_KEY = [ANY_STRING_FOR_SESSION]
+DATA_BACKEND = 'cloudsql'
+PROJECT_ID = [ID_(NOT_NAME)_OF_THE_GOOGLE_PROJECT]
+CLOUDSQL_USER = 'root'
+CLOUDSQL_PASSWORD = [DATABASE_PASSWORD]
+CLOUDSQL_DATABASE = 'bookshelf'
+CLOUDSQL_CONNECTION_NAME = [CONNECTION_NAME]
+
+
+LOCAL_SQLALCHEMY_DATABASE_URI = (
+    'mysql+pymysql://{user}:{password}@127.0.0.1:3306/{database}').format(
+        user=CLOUDSQL_USER, password=CLOUDSQL_PASSWORD,
+        database=CLOUDSQL_DATABASE)
+
+LIVE_SQLALCHEMY_DATABASE_URI = (
+    'mysql+pymysql://{user}:{password}@localhost/{database}'
+    '?unix_socket=/cloudsql/{connection_name}').format(
+        user=CLOUDSQL_USER, password=CLOUDSQL_PASSWORD,
+        database=CLOUDSQL_DATABASE, connection_name=CLOUDSQL_CONNECTION_NAME)
+
+if os.environ.get('GAE_INSTANCE'):
+    SQLALCHEMY_DATABASE_URI = LIVE_SQLALCHEMY_DATABASE_URI
+else:
+    SQLALCHEMY_DATABASE_URI = LOCAL_SQLALCHEMY_DATABASE_URI
+```
+And add the connection name in format `project_id:area_location:db_instance`.
+
+**Install python dependencies:**
+```
+pip install virtualenv 
+virtualenv -p python3 env 
+source env/bin/activate
+pip install -r requirements.txt
+```
+
+**Initialize database schema:**
+```bash
+python bookshelf/model_cloudsql.py
+```
+
+More concise installation guide by Google follows.
+
 # Python Google Cloud SQL sample for Google App Engine Flexible
 
 [![Open in Cloud Shell][shell_img]][shell_link]
