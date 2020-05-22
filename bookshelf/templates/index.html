@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <title>Bookshelf</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.4.6/dist/css/uikit.min.css" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='global.css') }}" />
+    <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.3.5/dist/alpine.min.js" defer></script>
+  </head>
+  <body x-data="page()" x-init="init()">
+    <nav class="uk-navbar-container uk-navbar">
+      <div class="uk-navbar-left">
+          <ul class="uk-navbar-nav">
+              <li :class="{'uk-active': route === 'books'}">
+                <a @click="route = 'books'">Books</a>
+              </li>
+          </ul>
+      </div>
+
+      <div class="uk-navbar-center">
+        <div class="uk-navbar-item">
+          <input
+            id="search"
+            x-model="search.value"
+            class="uk-input uk-form-width-large"
+            type="text"
+            placeholder='Press "/" to focus on search'
+            autocomplete="off"
+            @input="doSearch"
+          >
+          <img src="{{ url_for('static', filename='search.svg') }}" width="18" height="18" alt="search">
+          <div x-bind:class="{'uk-open': search.open}" class="uk-dropdown" @click.away="search.open = false">
+            <template x-if="search.loading">
+              <div class="loader">
+                <svg id="search-spinner" width="65px" height="65px" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg">
+                  <circle class="path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle>
+                </svg>
+              </div>
+            </template>
+            <template x-if="!search.loading && search.results.length">
+              <div class="uk-flex uk-flex-column">
+                <template x-for="(book, i) in search.results" :key="book.id">
+                  <div class="uk-grid uk-grid-divider" @click="route = 'book_' + book.id">
+                    <div class="uk-width-1-5">
+                      <div
+                        x-bind:style="`
+                          height: 32px;
+                          width: 40px;
+                          background-image: url(${book.imageUrl ? book.imageUrl : 'https://source.unsplash.com/collection/430456/40x32?bookIndex=' + i});
+                          background-color: rgba(220, 220, 220, 0.6);
+                          background-size: cover`"
+                      ></div>
+                    </div>
+                    <div class="uk-width-2-5">
+                      <h5 class="uk-margin-remove-bottom" x-text="book.title"></h5>
+                      <p class="uk-text-meta uk-margin-remove-top" x-text="book.author"></p>
+                    </div>
+                    <div class="uk-width-2-5">
+                      <p x-text="book.description.substring(0,50) + '...'"></p>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+
+      <div class="uk-navbar-right">
+        <div x-show="route !== 'add'" class="uk-navbar-item">
+          <button class="uk-button uk-button-primary" @click="route = 'add'">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none">
+              <path clip-rule="evenodd" d="M12 4a1 1 0 011 1v14a1 1 0 11-2 0V5a1 1 0 011-1z"></path>
+              <path clip-rule="evenodd" d="M4 12a1 1 0 011-1h14a1 1 0 110 2H5a1 1 0 01-1-1z"></path>
+            </svg>
+            Add book
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <template x-if="loading">
+      <svg id="spinner" width="65px" height="65px" viewBox="0 0 66 66" xmlns="http://www.w3.org/2000/svg">
+        <circle class="path" fill="none" stroke-width="6" stroke-linecap="round" cx="33" cy="33" r="30"></circle>
+      </svg>
+    </template>
+
+    <template x-if="route === 'add' || route.match(/edit_[0-9]+/)">
+      <section id="add" class="uk-container-xsmall uk-margin-top uk-margin-auto">
+        <h3>Add book to the bookshelf</h3>
+        <form class="uk-form-stacked" @submit="submitNewBook">
+          <div class="uk-grid uk-grid-small">
+            <div class="uk-margin uk-width-1-3@s">
+              <label class="uk-form-label" for="book-name">Name</label>
+              <div class="uk-form-controls">
+                <input x-model="form.title" autocomplete="off" class="uk-input" id="book-name" type="text" placeholder="Name of the book" required>
+              </div>
+            </div>
+            <div class="uk-width-1-3@s">
+              <label class="uk-form-label" for="book-author">Author</label>
+              <div class="uk-form-controls">
+                <input x-model="form.author" autocomplete="off" class="uk-input" id="book-author" type="text" placeholder="Steven King" required>
+              </div>
+            </div>
+            <div class="uk-width-1-3@s">
+              <label class="uk-form-label" for="book-date">Publish date</label>
+              <div class="uk-form-controls">
+                <input x-model="form.publishedDate" type="date" autocomplete="off" class="uk-input" id="book-date" placeholder="2011-03-21" required max="2020-06-15">
+              </div>
+            </div>
+          </div>
+
+          <div class="uk-margin">
+            <label class="uk-form-label" for="book-description">Description</label>
+            <div class="uk-form-controls">
+              <textarea x-model="form.description" id="book-description" class="uk-textarea" rows="3" placeholder="Write what is this book about" required></textarea>
+            </div>
+          </div>
+
+          <div class="uk-margin uk-flex uk-flex-between uk-margin-auto">
+            <button type="submit" class="uk-button uk-button-primary" x-text="route === 'add' ? 'Add the book' : 'Save changes'"></button>
+            <button type="button" class="uk-button uk-button-primary" @click="submitDataset">Add books from dataset</button>
+          </div>
+        </form>
+      </section>
+    </template>
+
+    <template x-if="route === 'books' && data">
+      <template x-if="!data.length">
+        <div id="no-books-found" class="uk-container-small uk-margin-large-top uk-margin-medium-left">
+          <h3>
+            No books found. Try adding them
+            <span @click="route = 'add'" style="color:#0f7ae5; text-decoration: underline; text-decoration-color: #0f7ae5; cursor: pointer">here</span>
+          </h3>
+        </div>
+      </template>
+      <section id="books">
+        <div class="uk-grid-column-medium uk-grid uk-grid-row-medium">
+          <template x-for="(book, i) in data" :key="book.id">
+            <div class="uk-width-1-3@m uk-grid-margin">
+              <div class="uk-card uk-card-default">
+                <div
+                  class="uk-card-media-top"
+                  @click="route = 'book_' + book.id"
+                  x-bind:style="`
+                      height: 200px;
+                      background-image: url(${book.imageUrl ? book.imageUrl : 'https://source.unsplash.com/collection/430456/400x200?bookIndex=' + i});
+                      background-color: rgba(220, 220, 220, 0.6);
+                      background-size: cover`"
+                >
+                </div>
+                <div class="uk-card-body">
+                  <h3 class="uk-card-title uk-margin-remove-bottom" x-text="'«' + book.title + '» by ' + book.author"></h3>
+                  <div class="uk-text-meta uk-margin-remove-top uk-flex uk-flex-between">
+                    <p class="uk-margin-remove-top"><time x-text="book.publishedDate"></time></p>
+                    <template x-if="!book.peopleRated">
+                      <p class="uk-margin-remove-top">Not rated</p>
+                    </template>
+                    <template x-if="book.peopleRated">
+                      <p class="uk-margin-remove-top" x-text="'Rating: ' + Number(book.rating).toFixed(1) + '/10'"></p>
+                    </template>
+                  </div>
+                  <p x-text="book.description.substring(0,100) + '...'"></p>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </section>
+    </template>
+
+    <template x-if="route.match(/book_[0-9]+/) && data">
+      <section id="book" class="uk-container-small uk-margin-large-top uk-margin-auto">
+        <div class="uk-grid uk-grid-large">
+          <div class="uk-width-1-2@m uk-flex uk-flex-column uk-flex-left">
+            <div
+              class="image"
+              x-bind:style="`
+                height: 300px;
+                background-image: url(${data.imageUrl ? data.imageUrl : 'https://source.unsplash.com/collection/430456/400x200?bookIndex=' + data.id});
+                background-color: rgba(220, 220, 220, 0.6);
+                background-size: cover`"
+            ></div>
+            <div class="uk-flex uk-margin-medium-top uk-flex-middle">
+              <div x-init="rater()" id="rater"></div>
+              <template x-if="!data.peopleRated">
+                <div class="uk-margin-small-left uk-text-meta">No one rated. Be first!</div>
+              </template>
+              <template x-if="data.peopleRated > 0">
+                <div class="uk-margin-small-left uk-text-meta" x-text="Number(data.rating).toFixed(1) + '/10. Rated by ' + data.peopleRated + ' people'"></div>
+              </template>
+            </div>
+          </div>
+          <div class="uk-width-1-2@m uk-flex uk-flex-between uk-flex-column">
+            <header>
+              <h3 x-text="data.title"></h3>
+              <div class="uk-flex uk-flex-between uk-flex-middle">
+                <h5 x-text="'by ' + data.author" class="uk-margin-remove-top"></h5>
+                <p x-text="data.publishedDate" class="uk-text-meta uk-margin-remove-top"></p>
+              </div>
+            </header>
+            <p x-text="data.description"></p>
+            <div class="uk-flex uk-flex-right">
+              <button class="uk-button uk-button-danger" @click="deleteBook">Delete</button>
+              <button class="uk-button uk-button-primary uk-margin-left" @click="route = 'edit_' + data.id">Edit</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </template>
+
+    <script>
+      // Simple fetch wrapper
+      const getData = (route, method = 'GET', data) => {
+        const config = {method};
+        if (data) {
+          config.headers = {'Content-Type': 'application/json'};
+          config.body = JSON.stringify(data);
+        }
+        return fetch(route, config).then(res => res.json());
+      };
+
+      // Initial data of form and search components
+      const form = {
+        title: '',
+        author: '',
+        publishedDate: '',
+        description: '',
+      };
+      const search = {
+        loading: false,
+        value: '',
+        open: false,
+        results: [],
+      };
+      let searchTimeout = null;
+
+      // Initialize main component (app wrapper)
+      function page () {
+        const route = new URLSearchParams(window.location.search).get('type') || 'books';
+        return {
+          route,
+          loading: false,
+          data: null,
+          rater: null,
+          search,
+          form,
+
+          // Here are all the methods used
+          // This one is for changing the SPA route
+          async getDataByRoute (path) {
+            if (document.getElementById('books')) document.getElementById('books').remove();
+            if (document.getElementById('add')) document.getElementById('add').remove();
+            if (document.getElementById('book')) document.getElementById('book').remove();
+            if (document.getElementById('no-books-found')) document.getElementById('no-books-found').remove();
+            this.rater = null;
+
+            if (path.match(/edit_[0-9]+/)) {
+              this.form = {...this.data};
+            }
+            this.data = null;
+
+            if (path === 'books') {
+              const res = await this.getBooks();
+              if (res && res.status === 200) this.data = res.data;
+            } else if (path.match(/book_[0-9]+/)) {
+              const res = await this.getBook(path.match(/book_([0-9]+)/)[1]);
+              if (res && res.status === 200) {
+                this.data = res.data;
+                this.rating();
+              }
+            }
+          },
+
+          // Add new book or edit it
+          async submitNewBook (e) {
+            e.preventDefault();
+            const body = {
+              title: this.form.title,
+              author: this.form.author,
+              publishedDate: this.form.publishedDate,
+              description: this.form.description,
+            };
+
+            let res;
+            if (this.route.match(/edit_[0-9]+/)) res = await getData('books/' + this.route.match(/edit_([0-9]+)/)[1], 'PUT', body);
+            else if (this.route === 'add') res = await getData('add', 'POST', body);
+
+            if (res && res.status === 200) {
+              this.form.title = '';
+              this.form.author = '';
+              this.form.publishedDate = '';
+              this.form.description = '';
+              this.route = 'books';
+            }
+          },
+
+          // Add books from the dataset in the end of the script
+          async submitDataset () {
+            const promises = [];
+            for (let data of DATASET) {
+              promises.push(new Promise((resolve) => {
+                resolve(getData('add', 'POST', data));
+              }));
+            }
+            await Promise.all(promises);
+            this.route = 'books';
+          },
+
+          // Remove a book
+          async deleteBook () {
+            if (this.route.match(/book_[0-9]+/)) {
+              const res = await getData('/books/' + this.route.match(/book_([0-9]+)/)[1], 'DELETE');
+              if (res && res.status === 201) this.route = 'books';
+            }
+          },
+
+          // Get all books for main page and a book for private page
+          getBooks () {
+            this.loading = true;
+            const res = getData('/list');
+            this.loading = false;
+            return res;
+          },
+          getBook (id) {
+            this.loading = true;
+            const res = getData('/book/' + id);
+            this.loading = false;
+            return res;
+          },
+
+          // Rate the book, save it in localStorage and disallow future rating by the same user
+          rating () {
+            if (!document.querySelector('#rater')) {
+              setTimeout(() => {
+                const ratedByUser = JSON.parse(localStorage.getItem('bookshelf-rates') || '[]');
+                this.rater = raterJs({
+                  max: 10,
+                  starSize: 24,
+                  element: document.querySelector('#rater'),
+                  readOnly: ratedByUser.some(rate => rate === this.data.id),
+                  rateCallback: async (rating, done) => {
+                    const peopleRated = this.data.peopleRated > 0 ? this.data.peopleRated + 1 : 1;
+                    if (this.route.match(/book_[0-9]+/)) {
+                      const res = await getData('books/' + this.route.match(/book_([0-9]+)/)[1], 'PUT', {
+                        rating: this.data.peopleRated > 0 ? ((this.data.rating * this.data.peopleRated + rating) / peopleRated) : rating,
+                        peopleRated,
+                      });
+                      if (res && res.status === 200) {
+                        this.data = res.data;
+                        localStorage.setItem('bookshelf-rates', JSON.stringify([res.data.id, ...ratedByUser]));
+                        this.rater.setRating(res.data.rating);
+                        this.rater.disable();
+                      }
+                    }
+                    done();
+                  },
+                });
+                if (this.data.rating && this.rater) this.rater.setRating(this.data.rating);
+              }, 100);
+            }
+          },
+
+          // Perform searching with a dropdown
+          doSearch () {
+            clearTimeout(searchTimeout);
+            if (this.search.value.length > 1) {
+              this.search.loading = true;
+              this.search.open = true;
+              searchTimeout = setTimeout(async () => {
+                const res = await getData('books?search=' + this.search.value);
+                this.search.loading = false;
+                if (res.status === 200) {
+                  if (res.data.length) this.search.results = res.data;
+                  else {
+                    this.search.results = [];
+                    this.search.open = false;
+                  }
+                }
+              }, 400);
+            } else {
+              this.search.results = [];
+              this.search.open = false;
+            }
+          },
+
+          // Initialize application with main event handlers and watching for route change
+          init() {
+            // Focus on search when Slash is pressed
+            document.addEventListener('keyup', (e) => {
+              if (e.code === 'Slash') {
+                document.getElementById('search').focus();
+              }
+            });
+
+            // Update route when browser's go back or go forward buttons are pressed
+            window.addEventListener('popstate', () => {
+              this.route = new URLSearchParams(window.location.search).get('type') || 'books';
+            });
+
+            this.getDataByRoute(route);
+
+            let prevType = route;
+            this.$watch('route', (value) => {
+              // only sync to URL on change...
+              if (prevType !== value) {
+                this.getDataByRoute(value);
+
+                const url = new URL(window.location.href);
+                url.searchParams.set('type', value);
+                history.pushState(null, document.title, url.toString());
+                prevType = value;
+              }
+            });
+          },
+        };
+      }
+
+      const DATASET = [
+        {
+          title: 'Atlas shrugged',
+          author: 'Ayn Rand',
+          publishedDate: '1957-11-07',
+          imageUrl: 'https://mattsorrentino.files.wordpress.com/2009/08/atlascover.jpg?w=677',
+          description: 'Published in 1957, Atlas Shrugged was Ayn Rand\'s greatest achievement and last work of fiction. In this novel she dramatizes her unique philosophy through an intellectual mystery story that integrates ethics, metaphysics, epistemology, politics, economics, and sex. Set in a near-future U.S.A. whose economy is collapsing as a result of the mysterious disappearance of leading innovators and industrialists, this novel presents an astounding panorama of human life-from the productive genius who becomes a worthless playboy...to the great steel industrialist who does not know that he is working for his own destruction...to the philosopher who becomes a pirate...to the woman who runs a transcontinental railroad...to the lowest track worker in her train tunnels. Peopled by larger-than-life heroes and villains, charged with towering questions of good and evil, Atlas Shrugged is a philosophical revolution told in the form of an action thriller.',
+        },
+        {
+          title: 'Harry Potter and the Cursed Child',
+          author: 'J.K. Rowling',
+          publishedDate: '2016-08-31',
+          imageUrl: 'https://vignette.wikia.nocookie.net/harrypotter/images/1/14/Harry_Potter_and_the_Cursed_Child_Script_Book_Cover.jpg/revision/latest/top-crop/width/360/height/450?cb=20160726165903',
+          description: 'Based on an original new story by J.K. Rowling, Jack Thorne and John Tiffany, a new play by Jack Thorne, Harry Potter and the Cursed Child is the eighth story in the Harry Potter series and the first official Harry Potter story to be presented on stage. The play will receive its world premiere in London’s West End on 30th July 2016. It was always difficult being Harry Potter and it isn’t much easier now that he is an overworked employee of the Ministry of Magic, a husband, and father of three school-age children. While Harry grapples with a past that refuses to stay where it belongs, his youngest son Albus must struggle with the weight of a family legacy he naver...',
+        },
+        {
+          title: 'A Game of Thrones',
+          author: 'George R. R. Martin',
+          publishedDate: '2009-03-01',
+          imageUrl: 'https://www.georgerrmartin.com/wp-content/uploads/2013/04/gotcomics1.jpg',
+          description: 'The first volume of A Song of Ice and Fire, the greatest fantasy epic of the modern age. GAME OF THRONES is now a major TV series from HBO, starring Sean Bean. Summers span decades. Winter can last a lifetime. And the struggle for the Iron Throne has begun. As Warden of the north, Lord Eddard Stark counts it a curse when King Robert bestows on him the office of the Hand. His honour weighs him down at court where a true man does what he will, not what he must ...and a dead enemy is a thing of beauty. The old gods have no power in the south, Stark\'s family is split and there is treachery at court. Worse, the vengeance-mad heir of the deposed Dragon King has grown to maturity in exile in the Free Cities. He claims the Iron Throne.',
+        },
+        {
+          title: '1984',
+          author: 'George Orwell',
+          publishedDate: '1930-05-17',
+          imageUrl: 'https://a5h8v9a3.stackpathcdn.com/wp-content/uploads/Orwell-1984-Book-Cover-02.jpg',
+          description: 'Winston Smith works for the Ministry of Truth in London, chief city of Airstrip One. Big Brother stares out from every poster, the Thought Police uncover every act of betrayal. When Winston finds love with Julia, he discovers that life does not have to be dull and deadening, and awakens to new possibilities. Despite the police helicopters that hover and circle overhead, Winston and Julia begin to question the Party; they are drawn towards conspiracy. Yet Big Brother will not tolerate dissent - even in the mind. For those with original thoughts they invented Room 101',
+        },
+        {
+          title: 'When Breath Becomes Air',
+          author: 'Paul Kalanithi',
+          publishedDate: '2017-01-05',
+          imageUrl: 'https://wellcomebookprize.org/sites/default/files/styles/book_main/public/Kalanithi%20flat.png?itok=cBg6ptiC',
+          description: 'When Breath Becomes Air chronicles Kalanithi\'s transformation from a medical student asking what makes a virtuous and meaningful life into a neurosurgeon working in the core of human identity - the brain - and finally into a patient and a new father.',
+        },
+        {
+          title: 'Rich Dad Poor Dad',
+          author: 'Robert T. Kiyosaki',
+          publishedDate: '2017-04-58',
+          imageUrl: 'https://www.richdad.com/MediaLibrary/RichDad/Images/3d-books/RDPD-book-spineview-shadow.png',
+          description: 'Rich Dad Poor Dad is Robert\'s story of growing up with two dads his real father and the father of his best friend, his rich dad and the ways in which both men shaped his thoughts about money and investing. The book explodes the myth that you need to earn a high income to be rich and explains the difference between working for money and having your money work for you.',
+        },
+        {
+          title: 'Dune',
+          author: 'Frank Herbert',
+          publishedDate: '2015-07-04',
+          imageUrl: 'https://mlpnk72yciwc.i.optimole.com/cqhiHLc-w80RK98L/w:382/h:397/q:75/https://www.bleedingcool.com/wp-content/uploads/2018/07/dunecover.jpg',
+          description: 'Melange, or \'spice\', is the most valuable - and rarest - element in the universe; a drug that does everything from increasing a person\'s life-span to making intersteller travel possible. And it can only be found on a single planet: the inhospitable desert world Arrakis.',
+        },
+        {
+          title: 'Ready player one',
+          author: 'Ernest Cline',
+          publishedDate: '2012-04-05',
+          imageUrl: 'https://images2.penguinrandomhouse.com/cover/9780804190145',
+          description: 'It\'s the year 2044, and the real world has become an ugly place. We\'re out of oil. We\'ve wrecked the climate. Famine, poverty, and disease are widespread.',
+        },
+      ];
+    </script>
+    <script src="{{ url_for('static', filename='rater.js') }}"></script>
+  </body>
+</html>
