@@ -1,9 +1,6 @@
 __pycache__
+.env
 .idea
+.vscode
 .DS_Store
-config.py
-env
-bookshelf/__pycache__
-bookshelf/.idea
-cloud_sql_proxy
-service.json
+api/node_modules

@@ -4,9 +4,9 @@
     <title>Bookshelf</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}" />
+    <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/uikit@3.4.6/dist/css/uikit.min.css" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='global.css') }}" />
+    <link rel="stylesheet" href="global.css" />
     <script src="https://cdn.jsdelivr.net/gh/alpinejs/alpine@v2.3.5/dist/alpine.min.js" defer></script>
   </head>
   <body x-data="page()" x-init="init()">
@@ -30,7 +30,7 @@
             autocomplete="off"
             @input="doSearch"
           >
-          <img src="{{ url_for('static', filename='search.svg') }}" width="18" height="18" alt="search">
+          <img src="search.svg" width="18" height="18" alt="search">
           <div x-bind:class="{'uk-open': search.open}" class="uk-dropdown" @click.away="search.open = false">
             <template x-if="search.loading">
               <div class="loader">
@@ -41,8 +41,8 @@
             </template>
             <template x-if="!search.loading && search.results.length">
               <div class="uk-flex uk-flex-column">
-                <template x-for="(book, i) in search.results" :key="book.id">
-                  <div class="uk-grid uk-grid-divider" @click="route = 'book_' + book.id">
+                <template x-for="(book, i) in search.results" :key="book._id">
+                  <div class="uk-grid uk-grid-divider" @click="route = 'book_' + book._id">
                     <div class="uk-width-1-5">
                       <div
                         x-bind:style="`
@@ -87,7 +87,7 @@
       </svg>
     </template>
 
-    <template x-if="route === 'add' || route.match(/edit_[0-9]+/)">
+    <template x-if="route === 'add' || route.match(/edit_\w+/)">
       <section id="add" class="uk-container-xsmall uk-margin-top uk-margin-auto">
         <h3>Add book to the bookshelf</h3>
         <form class="uk-form-stacked" @submit="submitNewBook">
@@ -138,12 +138,12 @@
       </template>
       <section id="books">
         <div class="uk-grid-column-medium uk-grid uk-grid-row-medium">
-          <template x-for="(book, i) in data" :key="book.id">
+          <template x-for="(book, i) in data" :key="book._id">
             <div class="uk-width-1-3@m uk-grid-margin">
               <div class="uk-card uk-card-default">
                 <div
                   class="uk-card-media-top"
-                  @click="route = 'book_' + book.id"
+                  @click="route = 'book_' + book._id"
                   x-bind:style="`
                       height: 200px;
                       background-image: url(${book.imageUrl ? book.imageUrl : 'https://source.unsplash.com/collection/430456/400x200?bookIndex=' + i});
@@ -171,7 +171,7 @@
       </section>
     </template>
 
-    <template x-if="route.match(/book_[0-9]+/) && data">
+    <template x-if="route.match(/book_\w+/) && data">
       <section id="book" class="uk-container-small uk-margin-large-top uk-margin-auto">
         <div class="uk-grid uk-grid-large">
           <div class="uk-width-1-2@m uk-flex uk-flex-column uk-flex-left">
@@ -204,7 +204,7 @@
             <p x-text="data.description"></p>
             <div class="uk-flex uk-flex-right">
               <button class="uk-button uk-button-danger" @click="deleteBook">Delete</button>
-              <button class="uk-button uk-button-primary uk-margin-left" @click="route = 'edit_' + data.id">Edit</button>
+              <button class="uk-button uk-button-primary uk-margin-left" @click="route = 'edit_' + data._id">Edit</button>
             </div>
           </div>
         </div>
@@ -219,7 +219,7 @@
           config.headers = {'Content-Type': 'application/json'};
           config.body = JSON.stringify(data);
         }
-        return fetch(route, config).then(res => res.json());
+        return fetch('http://localhost:8080/' + route, config).then(res => res.json());
       };
 
       // Initial data of form and search components
@@ -257,7 +257,7 @@
             if (document.getElementById('no-books-found')) document.getElementById('no-books-found').remove();
             this.rater = null;
 
-            if (path.match(/edit_[0-9]+/)) {
+            if (path.match(/edit_\w+/)) {
               this.form = {...this.data};
             }
             this.data = null;
@@ -265,8 +265,8 @@
             if (path === 'books') {
               const res = await this.getBooks();
               if (res && res.status === 200) this.data = res.data;
-            } else if (path.match(/book_[0-9]+/)) {
-              const res = await this.getBook(path.match(/book_([0-9]+)/)[1]);
+            } else if (path.match(/book_\w+/)) {
+              const res = await this.getBook(path.match(/book_(\w+)/)[1]);
               if (res && res.status === 200) {
                 this.data = res.data;
                 this.rating();
@@ -285,7 +285,7 @@
             };
 
             let res;
-            if (this.route.match(/edit_[0-9]+/)) res = await getData('books/' + this.route.match(/edit_([0-9]+)/)[1], 'PUT', body);
+            if (this.route.match(/edit_\w+/)) res = await getData('books/' + this.route.match(/edit_(\w+)/)[1], 'PUT', body);
             else if (this.route === 'add') res = await getData('add', 'POST', body);
 
             if (res && res.status === 200) {
@@ -311,8 +311,8 @@
 
           // Remove a book
           async deleteBook () {
-            if (this.route.match(/book_[0-9]+/)) {
-              const res = await getData('/books/' + this.route.match(/book_([0-9]+)/)[1], 'DELETE');
+            if (this.route.match(/book_\w+/)) {
+              const res = await getData('books/' + this.route.match(/book_(\w+)/)[1], 'DELETE');
               if (res && res.status === 201) this.route = 'books';
             }
           },
@@ -320,13 +320,13 @@
           // Get all books for main page and a book for private page
           getBooks () {
             this.loading = true;
-            const res = getData('/list');
+            const res = getData('list');
             this.loading = false;
             return res;
           },
           getBook (id) {
             this.loading = true;
-            const res = getData('/book/' + id);
+            const res = getData('book/' + id);
             this.loading = false;
             return res;
           },
@@ -343,8 +343,8 @@
                   readOnly: ratedByUser.some(rate => rate === this.data.id),
                   rateCallback: async (rating, done) => {
                     const peopleRated = this.data.peopleRated > 0 ? this.data.peopleRated + 1 : 1;
-                    if (this.route.match(/book_[0-9]+/)) {
-                      const res = await getData('books/' + this.route.match(/book_([0-9]+)/)[1], 'PUT', {
+                    if (this.route.match(/book_\w+/)) {
+                      const res = await getData('books/' + this.route.match(/book_(\w+)/)[1], 'PUT', {
                         rating: this.data.peopleRated > 0 ? ((this.data.rating * this.data.peopleRated + rating) / peopleRated) : rating,
                         peopleRated,
                       });
@@ -477,6 +477,6 @@
         },
       ];
     </script>
-    <script src="{{ url_for('static', filename='rater.js') }}"></script>
+    <script src="rater.js"></script>
   </body>
 </html>
